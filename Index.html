@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #72e9f8, #056c64);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 500px;
+            background-color: #ffffff;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+            border-radius: 15px;
+            overflow: hidden;
+            text-align: center;
+            animation: fadeIn 1s ease-in-out;
+            padding: 20px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        h1 {
+            color: #00796b;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .upload-card {
+            padding: 20px;
+            background-color: #f1f8e9;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #00796b;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        button:hover {
+            background-color: #004d40;
+        }
+
+        .progress-circle {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            background: conic-gradient(#00796b var(--progress), #ddd 0);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2rem;
+            color: #00796b;
+            margin: 0 auto 15px;
+            animation: popIn 0.5s ease-out;
+        }
+
+        @keyframes popIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        .progress-circle span {
+            position: absolute;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📂 File Upload Dashboard</h1>
+
+        <div class="upload-card">
+            <h2>Upload New Files</h2>
+            <input type="text" id="senderName" placeholder="Enter your name">
+            <input type="file" id="fileInput" multiple>
+            <button onclick="uploadFile()"><i class="fas fa-upload"></i> Upload File</button>
+
+            <div class="progress-circle" id="progressCircle" style="--progress: 0deg;">
+                <span id="progressText">0%</span>
+            </div>
+        </div>
+
+        <div class="uploads-list">
+            <h2>Recent Uploads</h2>
+            <div id="fileList">
+                <!-- Uploaded files will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const senderNameInput = document.getElementById('senderName');
+        const progressCircle = document.getElementById('progressCircle');
+        const progressText = document.getElementById('progressText');
+
+        const CLIENT_ID = "874922187178-fptorkdo5dgnppoad0lf2dmr1q5hbvrd.apps.googleusercontent.com";
+        const CLIENT_SECRET = "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";
+        const REFRESH_TOKEN = "1//04XX6kzypod13CgYIARAAGAQSNwF-L9Irh7OAsMq9Q0v2QGuRsGbt1HMVJ_wY37uhXbmENfuOkbZp5eGrS_JRdD6v8B_OOmbu8as";
+
+        async function getAccessToken() {
+            const response = await fetch("https://oauth2.googleapis.com/token", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: new URLSearchParams({
+                    client_id: CLIENT_ID,
+                    client_secret: CLIENT_SECRET,
+                    refresh_token: REFRESH_TOKEN,
+                    grant_type: "refresh_token"
+                })
+            });
+            const data = await response.json();
+            return data.access_token;
+        }
+
+        function resetProgress() {
+            progressCircle.style.setProperty('--progress', `0deg`);
+            progressText.textContent = `0%`;
+        }
+
+        function updateProgress(progress) {
+            const degree = (progress / 100) * 360;
+            progressCircle.style.setProperty('--progress', `${degree}deg`);
+            progressText.textContent = `${progress}%`;
+        }
+
+        async function uploadFile() {
+            const senderName = senderNameInput.value.trim();
+            if (!senderName) {
+                alert("Please enter your name!");
+                return;
+            }
+
+            const files = fileInput.files;
+            if (files.length === 0) {
+                alert("Please select a file!");
+                return;
+            }
+
+            const accessToken = await getAccessToken();
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const metadata = {
+                    name: `${senderName}_${file.name}`,
+                    parents: ["root"]
+                };
+
+                const formData = new FormData();
+                formData.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+                formData.append("file", file);
+
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.onprogress = function(event) {
+                    const progress = Math.round((event.loaded / event.total) * 100);
+                    updateProgress(progress);
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        const result = JSON.parse(xhr.responseText);
+                        alert(`File ${result.name} uploaded successfully by ${senderName}!`);
+                        displayFiles([{ name: result.name, size: file.size }]);
+                    } else {
+                        alert(`Failed to upload file: ${xhr.statusText}`);
+                    }
+                    resetProgress();
+                };
+
+                xhr.onerror = function() {
+                    alert("Error uploading the file.");
+                    resetProgress();
+                };
+
+                xhr.open("POST", "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", true);
+                xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+                xhr.send(formData);
+            }
+
+            // Clear the file input after successful upload
+            fileInput.value = "";
+        }
+
+        function displayFiles(files) {
+            files.forEach(file => {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'file-item';
+                fileDiv.innerHTML = `
+                    <span><i class="fas fa-file-alt"></i> ${file.name}</span>
+                    <span>${(file.size / 1024).toFixed(2)} KB</span>
+                `;
+                fileList.appendChild(fileDiv);
+            });
+        }
+    </script>
+    <script>
+        // Disable right-click
+        document.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+        });
+      
+        // Disable specific keys that open dev tools
+        document.addEventListener('keydown', function(e) {
+          // Disable F12 (DevTools) and Ctrl+Shift+I (Inspect)
+          if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+            e.preventDefault();
+          }
+          // Disable Ctrl+Shift+J (Console) and Ctrl+Shift+C (Elements)
+          if ((e.ctrlKey && e.shiftKey && e.key === 'J') || (e.ctrlKey && e.shiftKey && e.key === 'C')) {
+            e.preventDefault();
+          }
+          // Disable Ctrl+U (View Source)
+          if (e.ctrlKey && e.key === 'U') {
+            e.preventDefault();
+          }
+        });
+      </script>
+      
+</body>
+</html>
